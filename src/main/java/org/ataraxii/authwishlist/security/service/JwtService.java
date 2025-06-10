@@ -48,24 +48,42 @@ public class JwtService {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()));
+        return username.equals(userDetails.getUsername()) && validateToken(token);
     }
 
-    public String generateAccessToken(UserDetails user) {
+    public String generateAccessToken(String username) {
         return Jwts.builder()
-                .subject(user.getUsername())
+                .subject(username)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY_MS))
+                .expiration(getAccessTokenExpiryDate())
                 .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
     }
 
-    public String generateRefreshToken(UserDetails user) {
+    public String generateRefreshToken(String username) {
         return Jwts.builder()
-                .subject(user.getUsername())
+                .subject(username)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + REFRESH_TOKEN_VALIDITY_MS))
+                .expiration(getRefreshTokenExpiryDate())
                 .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            Date expiration = claims.getExpiration();
+            return expiration.after(new Date());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public Date getRefreshTokenExpiryDate() {
+        return new Date(System.currentTimeMillis() + REFRESH_TOKEN_VALIDITY_MS); // 30 дней
+    }
+
+    public Date getAccessTokenExpiryDate() {
+        return new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY_MS); // 48 часов
     }
 }

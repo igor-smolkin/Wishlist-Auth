@@ -10,36 +10,34 @@ import org.ataraxii.authwishlist.database.repository.RefreshTokenRepository;
 import org.ataraxii.authwishlist.database.repository.RoleRepository;
 import org.ataraxii.authwishlist.database.repository.UserRepository;
 import org.ataraxii.authwishlist.exception.ConflictException;
+import org.ataraxii.authwishlist.exception.InvalidTokenException;
 import org.ataraxii.authwishlist.exception.NotFoundException;
 import org.ataraxii.authwishlist.security.dto.login.LoginRequestDto;
 import org.ataraxii.authwishlist.security.dto.login.LoginResponseDto;
 import org.ataraxii.authwishlist.security.dto.register.RegisterRequestDto;
 import org.ataraxii.authwishlist.security.dto.register.RegisterResponseDto;
+import org.ataraxii.authwishlist.security.dto.token.RefreshRequestDto;
+import org.ataraxii.authwishlist.security.dto.token.RefreshResponseDto;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.Optional;
+import java.util.Date;
 import java.util.Set;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-    private static final long REFRESH_TOKEN_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final AuthenticationManager authenticationManager;
-    private final UserDetailsService userDetailsService;
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
 
@@ -83,21 +81,21 @@ public class AuthService {
                     )
             );
 
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String username = authentication.getName();
 
-            String accessToken = jwtService.generateAccessToken(userDetails);
-            String refreshToken = jwtService.generateRefreshToken(userDetails);
+            String accessToken = jwtService.generateAccessToken(username);
+            String refreshToken = jwtService.generateRefreshToken(username);
 
-            User user = userRepository.findByUsername(userDetails.getUsername())
+            User user = userRepository.findByUsername(username)
                             .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
 
-            Instant expiryDate = Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY_MS);
+            Date expiryDate = jwtService.getRefreshTokenExpiryDate();
 
             refreshTokenRepository.save(
                     RefreshToken.builder()
                             .user(user)
                             .token(refreshToken)
-                            .expiryDate(expiryDate)
+                            .expiryDate(expiryDate.toInstant())
                             .build()
             );
 
@@ -110,5 +108,30 @@ public class AuthService {
             log.warn("Ошибка входа: username='{}' пользователь деактивирован", request.getUsername());
             throw e;
         }
+    }
+
+    public RefreshResponseDto refresh(RefreshRequestDto request) {
+        if (!jwtService.validateToken(request.getRefreshToken())) {
+            throw new InvalidTokenException("Refresh токен недействителен");
+        }
+
+        RefreshToken storedToken = refreshTokenRepository.findByToken(request.getRefreshToken())
+                .orElseThrow(() -> new InvalidTokenException("Refresh токен не найден"));
+
+        String username = jwtService.extractUsername(request.getRefreshToken());
+
+        String accessToken = jwtService.generateAccessToken(username);
+        String refreshToken = jwtService.generateRefreshToken(username);
+
+        storedToken.setToken(refreshToken);
+        storedToken.setExpiryDate(calculateExpiry());
+        refreshTokenRepository.save(storedToken);
+
+        return new RefreshResponseDto(accessToken, refreshToken);
+    }
+
+    public Instant calculateExpiry() {
+        Date date = jwtService.getRefreshTokenExpiryDate();
+        return date.toInstant();
     }
 }
