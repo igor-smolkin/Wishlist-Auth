@@ -2,9 +2,11 @@ package org.ataraxii.authwishlist.security.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.ataraxii.authwishlist.database.entity.RefreshToken;
 import org.ataraxii.authwishlist.database.entity.Role;
 import org.ataraxii.authwishlist.database.entity.RoleType;
 import org.ataraxii.authwishlist.database.entity.User;
+import org.ataraxii.authwishlist.database.repository.RefreshTokenRepository;
 import org.ataraxii.authwishlist.database.repository.RoleRepository;
 import org.ataraxii.authwishlist.database.repository.UserRepository;
 import org.ataraxii.authwishlist.exception.ConflictException;
@@ -24,12 +26,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.Set;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final long REFRESH_TOKEN_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -37,6 +41,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
     private final JwtService jwtService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public RegisterResponseDto register(RegisterRequestDto request) {
         log.info("Попытка регистрации: username={}", request.getUsername());
@@ -78,11 +83,26 @@ public class AuthService {
                     )
             );
 
-            UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
-            String jwtToken = jwtService.generateToken(userDetails);
+            String accessToken = jwtService.generateAccessToken(userDetails);
+            String refreshToken = jwtService.generateRefreshToken(userDetails);
+
+            User user = userRepository.findByUsername(userDetails.getUsername())
+                            .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
+
+            Instant expiryDate = Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY_MS);
+
+            refreshTokenRepository.save(
+                    RefreshToken.builder()
+                            .user(user)
+                            .token(refreshToken)
+                            .expiryDate(expiryDate)
+                            .build()
+            );
+
             log.info("Успешный вход: username='{}'", request.getUsername());
-            return new LoginResponseDto(jwtToken);
+            return new LoginResponseDto(accessToken, refreshToken);
         } catch (BadCredentialsException e) {
             log.warn("Ошибка входа: username='{}' неверный логин или пароль", request.getUsername());
             throw e;

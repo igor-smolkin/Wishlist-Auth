@@ -23,6 +23,14 @@ CREATE TABLE user_roles
     PRIMARY KEY (user_id, role_id)
 );
 
+CREATE TABLE refresh_tokens
+(
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token text NOT NULL,
+    expiry_date timestamp NOT NULL
+);
+
 INSERT INTO roles (name)
 VALUES ('USER'),
        ('ADMIN');

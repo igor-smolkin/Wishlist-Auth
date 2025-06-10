@@ -11,12 +11,13 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
+
+    private static final long ACCESS_TOKEN_VALIDITY_MS = 60 * 60 * 1000;
+    private static final long REFRESH_TOKEN_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
     @Value("${jwt.secret}")
     private String secret;
@@ -50,18 +51,20 @@ public class JwtService {
         return (username.equals(userDetails.getUsername()));
     }
 
-    public String generateToken(UserDetails userDetails) {
-        Map<String, Object> claims = new HashMap<>();
-        return buildToken(claims, userDetails.getUsername());
+    public String generateAccessToken(UserDetails user) {
+        return Jwts.builder()
+                .subject(user.getUsername())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY_MS))
+                .signWith(secretKey, Jwts.SIG.HS256)
+                .compact();
     }
 
-    private String buildToken(Map<String, Object> extraClaims, String username) {
-        return Jwts
-                .builder()
-                .subject(username)
-                .claims(extraClaims)
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60))
+    public String generateRefreshToken(UserDetails user) {
+        return Jwts.builder()
+                .subject(user.getUsername())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + REFRESH_TOKEN_VALIDITY_MS))
                 .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
     }
