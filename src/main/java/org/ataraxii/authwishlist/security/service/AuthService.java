@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -81,13 +82,15 @@ public class AuthService {
                     )
             );
 
-            String username = authentication.getName();
+            User user = userRepository.findByUsername(authentication.getName())
+                    .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
 
-            String accessToken = jwtService.generateAccessToken(username);
-            String refreshToken = jwtService.generateRefreshToken(username);
+            List<RoleType> roles = user.getRoles().stream()
+                    .map(Role::getName)
+                    .toList();
 
-            User user = userRepository.findByUsername(username)
-                            .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
+            String accessToken = jwtService.generateAccessToken(user.getUsername(), user.getId(), roles);
+            String refreshToken = jwtService.generateRefreshToken(user.getUsername());
 
             Date expiryDate = jwtService.getRefreshTokenExpiryDate();
 
@@ -120,7 +123,14 @@ public class AuthService {
 
         String username = jwtService.extractUsername(request.getRefreshToken());
 
-        String accessToken = jwtService.generateAccessToken(username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
+
+        List<RoleType> roles = user.getRoles().stream()
+                .map(Role::getName)
+                .toList();
+
+        String accessToken = jwtService.generateAccessToken(username, user.getId(), roles);
         String refreshToken = jwtService.generateRefreshToken(username);
 
         storedToken.setToken(refreshToken);
