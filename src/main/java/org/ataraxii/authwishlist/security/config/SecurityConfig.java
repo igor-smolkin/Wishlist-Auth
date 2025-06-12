@@ -57,4 +57,21 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    @Bean
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+        var configuration = new org.springframework.web.cors.CorsConfiguration();
+        configuration.addAllowedOrigin("http://194.87.74.158");
+        configuration.addAllowedOrigin("http://localhost:3000");
+        configuration.addAllowedMethod("GET");
+        configuration.addAllowedMethod("POST");
+        configuration.addAllowedMethod("PUT");
+        configuration.addAllowedMethod("DELETE");
+        configuration.addAllowedHeader("*");
+        configuration.setAllowCredentials(true);
+
+        var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 }
