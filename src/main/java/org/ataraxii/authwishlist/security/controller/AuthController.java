@@ -36,9 +36,9 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-//    @PostMapping("/refresh")
-//    public ResponseEntity<RefreshResponseDto> refresh(@RequestBody RefreshRequestDto request) {
-//        RefreshResponseDto response = authService.refresh(request);
-//        return ResponseEntity.ok(response);
-//    }
+    @PostMapping("/refresh")
+    public ResponseEntity<RefreshResponseDto> refresh(@RequestBody RefreshRequestDto request) {
+        RefreshResponseDto response = authService.refresh(request);
+        return ResponseEntity.ok(response);
+    }
 }
