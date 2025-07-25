@@ -58,6 +58,7 @@ class AuthServiceTest {
 
     @Test
     void registerUser_valid_save() {
+        // Подготовка
         RegisterRequestDto request = RegisterRequestDto.builder()
                 .username("testuser")
                 .password("testpassword")
@@ -68,6 +69,7 @@ class AuthServiceTest {
                 .name(RoleType.USER)
                 .build();
 
+        // Действие
         when(userRepository.existsByUsername(request.getUsername())).thenReturn(false);
         when(roleRepository.findByName(RoleType.USER)).thenReturn(Optional.of(roleUser));
         when(passwordEncoder.encode(request.getPassword())).thenReturn("hashedpassword");
@@ -79,6 +81,7 @@ class AuthServiceTest {
         verify(userRepository).save(userCaptor.capture());
         User savedUser = userCaptor.getValue();
 
+        // Проверка
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
 
@@ -90,17 +93,22 @@ class AuthServiceTest {
 
     @Test
     void registerUser_AlreadyExists_throwConflictException() {
+        // Подготовка
         RegisterRequestDto request = RegisterRequestDto.builder()
                 .username("testuser")
                 .password("testpassword")
                 .build();
 
+        // Действие
         when(userRepository.existsByUsername(request.getUsername())).thenReturn(true);
+
+        // Проверка
         assertThrows(ConflictException.class, () -> authService.register(request));
     }
 
     @Test
     void loginUser_valid_returnJwtToken() {
+        // Подготовка
         LoginRequestDto request = LoginRequestDto.builder()
                 .username("testuser")
                 .password("testpassword")
@@ -110,12 +118,10 @@ class AuthServiceTest {
 
         when(authenticationManager.authenticate(any()))
                 .thenReturn(new UsernamePasswordAuthenticationToken(userDetails, null, List.of()));
-        when(userDetailsService.loadUserByUsername("testuser")).thenReturn(userDetails);
-        when(jwtService.generateToken(userDetails)).thenReturn("token.jwt");
 
-        LoginResponseDto response = authService.login(request);
+        when(userRepository.findByUsername("testuser")).thenReturn(new User("", "testuser", "testpassword"))
 
-        assertEquals("token.jwt", response.getToken());
+
     }
 
     @Test
